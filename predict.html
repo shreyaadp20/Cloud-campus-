@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🎓 Future Campus Predictor</title>
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+  <style>
+    body {
+      background: linear-gradient(to right, #6a11cb, #2575fc);
+      color: #333;
+      font-family: "Poppins", sans-serif;
+      padding: 30px;
+    }
+    .container {
+      background: white;
+      border-radius: 15px;
+      padding: 40px;
+      max-width: 700px;
+      margin: 60px auto;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .btn-custom {
+      background-color: #28a745;
+      color: white;
+      font-weight: bold;
+      font-size: 1.2em;
+      border-radius: 8px;
+    }
+    .btn-custom:hover {
+      background-color: #218838;
+    }
+    .chance-high {
+      color: green;
+      font-weight: bold;
+    }
+    .chance-medium {
+      color: orange;
+      font-weight: bold;
+    }
+    .chance-low {
+      color: red;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎓 Future Campus Predictor</h1>
+
+    <div class="mb-3">
+      <label for="marks" class="form-label">Enter Your Marks:</label>
+      <input type="number" class="form-control" id="marks" placeholder="Enter marks (0–100)" />
+    </div>
+
+    <div class="mb-3">
+      <label for="branch" class="form-label">Select Branch:</label>
+      <input type="text" class="form-control" id="branch" placeholder="e.g., Computer Engineering" />
+    </div>
+
+    <div class="mb-3">
+      <label for="city" class="form-label">Select City:</label>
+      <input type="text" class="form-control" id="city" placeholder="e.g., Pune" />
+    </div>
+
+    <button id="submitBtn" class="btn btn-custom w-100">Predict Colleges 🚀</button>
+
+    <div id="response" class="mt-4"></div>
+  </div>
+  <script>
+  document.getElementById('submitBtn').addEventListener('click', async function () {
+    const marks = document.getElementById('marks').value.trim();
+    const branch = document.getElementById('branch').value;
+    const city = document.getElementById('city').value;
+    const responseDiv = document.getElementById('response');
+    const btn = document.getElementById('submitBtn');
+
+    if (!marks || !branch || !city) {
+      responseDiv.innerHTML = `<div class="alert alert-danger">⚠️ Please fill in all fields.</div>`;
+      return;
+    }
+    if (marks < 0 || marks > 100) {
+      responseDiv.innerHTML = `<div class="alert alert-danger">❌ Marks must be between 0 and 100.</div>`;
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerText = "Predicting... ⌛";
+    responseDiv.innerHTML = `
+      <div class="text-center">
+        <div class="spinner-border text-success" role="status"></div>
+        <p class="mt-3">Finding the best colleges for you...</p>
+      </div>
+    `;
+
+    try {
+      const res = await fetch("/predict_colleges", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ marks: parseFloat(marks), branch, city })
+      });
+
+      // Safely parse JSON (avoid "Unexpected token <" on HTML pages)
+      let data;
+      const ct = res.headers.get("content-type") || "";
+      if (ct.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(`Non-JSON response (${res.status}): ${text.slice(0, 200)}...`);
+      }
+
+      btn.disabled = false;
+      btn.innerText = "Predict Colleges 🚀";
+
+      if (data.error) {
+        responseDiv.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+        return;
+      }
+
+      const colleges = data.eligible_colleges || [];
+      if (colleges.length === 0) {
+        responseDiv.innerHTML = `<div class="alert alert-warning">😔 No colleges found for your criteria.</div>`;
+        return;
+      }
+
+      let html = `
+        <div class="alert alert-success">
+          ✅ Found ${colleges.length} eligible colleges!
+        </div>
+        <table class="table table-striped table-bordered mt-3">
+          <thead class="table-success">
+            <tr>
+              <th>College Name</th>
+              <th>Branch</th>
+              <th>City</th>
+              <th>Chance</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      colleges.forEach(c => {
+        const chance = c.predicted_chance || c.chances || 0;
+        let cls = "chance-medium";
+        if (chance >= 80) cls = "chance-high";
+        else if (chance < 50) cls = "chance-low";
+
+        html += `
+          <tr>
+            <td><strong>${c.college_name}</strong></td>
+            <td>${c.branch}</td>
+            <td>${c.city}</td>
+            <td class="${cls}">${Number(chance).toFixed(1)}%</td>
+          </tr>
+        `;
+      });
+
+      html += `</tbody></table>`;
+      responseDiv.innerHTML = html;
+
+    } catch (err) {
+      btn.disabled = false;
+      btn.innerText = "Predict Colleges 🚀";
+      responseDiv.innerHTML = `
+        <div class="alert alert-danger">
+          ❌ Unable to connect to backend.<br>
+          <small>${err.message}</small>
+        </div>
+      `;
+    }
+  });
+
+  // Prefill for quick test
+  document.addEventListener('DOMContentLoaded', () => {
+    const m = document.getElementById('marks');
+    const b = document.getElementById('branch');
+    const c = document.getElementById('city');
+    if (m && b && c) {
+      m.value = 85;
+      b.value = 'Computer Engineering';
+      c.value = 'Pune';
+    }
+  });
+</script>
+</body>
+</html>
